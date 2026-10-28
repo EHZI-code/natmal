@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>낱말장</title>
+<meta name="description" content="찾아본 낱말을 뜻·예문과 함께 모아 두는 개인 단어장">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="낱말장">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="/style.css">
+<style>
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+  img { max-width: 100%; }
+  /* 로그인 화면 */
+  .auth .field input { display: block; width: 100%; border: 0; background: transparent; padding: 7px 0 0; font: inherit; color: var(--fg); outline: none; }
+  .auth .field input::placeholder { font-family: var(--sans); font-size: 13px; color: var(--faint); }
+  .auth .field:focus-within::after { background: var(--rule); }
+  .auth .auth-msg { margin: 10px 0 0; font-family: var(--sans); font-size: 12.5px; font-weight: 300; line-height: 1.5; color: var(--muted); }
+  .auth .auth-msg.err { color: var(--rose); }
+  .auth .auth-intro { margin: 4px 0 0; line-height: 1.5; color: var(--muted); }
+  .account .field input { display: block; width: 100%; border: 0; background: transparent; padding: 7px 0 0; font: inherit; color: var(--fg); outline: none; }
+  .account .field input::placeholder { font-family: var(--sans); font-size: 13px; color: var(--faint); }
+</style>
+</head>
+<body>
+<div class="stick">
+  <header class="top">
+    <div class="wrap">
+      <div class="brand"><h1 aria-label="낱말장"><span class="pa" aria-hidden="true">(</span><span class="pgap" aria-hidden="true"></span><span class="pa" aria-hidden="true">)</span></h1><div class="list-head" id="headtools" hidden>
+        <div class="count" id="count">불러오는 중</div>
+        <div class="tools"><button class="btn" id="arrange" type="button" hidden>정리하기</button><button class="btn" id="account" type="button">계정</button></div>
+      </div></div>
+    </div>
+  </header>
+  <div class="searchband gut" id="searchband" hidden>
+    <form class="search" id="search-form" autocomplete="off">
+      <input id="q" type="search" placeholder="낱말을 적고 뜻을 찾아보세요." enterkeyhint="search" aria-label="낱말 찾기">
+      <button class="btn btn-primary" id="go" type="submit">찾기</button>
+    </form>
+    <div class="notice" id="notice" hidden></div>
+  </div>
+</div>
+
+<main>
+  <div class="list" id="list"></div>
+</main>
+
+<input type="file" id="import-input" accept=".json,application/json" hidden>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="/app.js"></script>
+<script>if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));</script>
+</body>
+</html>

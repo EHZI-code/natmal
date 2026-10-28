@@ -1,0 +1,16 @@
+{
+  "name": "낱말장",
+  "short_name": "낱말장",
+  "description": "찾아본 낱말을 뜻·예문과 함께 모아 두는 개인 단어장",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F3EF",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
