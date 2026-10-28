@@ -68,4 +68,3 @@ Supabase → **Authentication → URL Configuration**
 
 `https://○○○.vercel.app/api/dict?q=금어` 를 열면 사전 결과가 JSON으로 보여야 합니다.
 `{"error":"no_api_key"}`가 나오면 Vercel 환경 변수를 넣은 뒤 다시 배포(Redeploy)하세요.
-
