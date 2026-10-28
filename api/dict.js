@@ -87,8 +87,12 @@ async function fromStdict(q, key) {
 // 상세 정보는 JSON으로 물으면 빈 답이 와서 XML로 받아 뜻을 꺼낸다
 async function stdictDetail(key, code) {
   const out = { senses: [], origin: "" };
-  const xml = await stdictDetailXml(key, code);
+  let xml = await stdictDetailXml(key, code);
   if (!xml) return out;
+  // 관용구·속담(subword_info)과 관련 어휘(relation/lexical_info)의 뜻은 빼고 낱말 자체의 뜻만
+  xml = xml.replace(/<subword_info>[\s\S]*?<\/subword_info>/g, "")
+           .replace(/<relation_info>[\s\S]*?<\/relation_info>/g, "")
+           .replace(/<lexical_info>[\s\S]*?<\/lexical_info>/g, "");
   for (const m of xml.matchAll(/<definition>([\s\S]*?)<\/definition>/g)) {
     const d = clean(m[1].replace(/^<!\[CDATA\[/, "").replace(/\]\]>$/, ""));
     if (d && !out.senses.includes(d)) out.senses.push(d);
