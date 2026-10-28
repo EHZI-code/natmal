@@ -639,6 +639,38 @@
   }
   const grow = (t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; };
 
+  /* ---------- 새로고침 ---------- */
+  // 화면 파일이 바뀌었을 수도 있어서 페이지를 통째로 다시 연다 (홈 화면 앱에는 새로고침 버튼이 없다)
+  const hardRefresh = () => { $("#ptr-t").textContent = "새로 불러오는 중…"; location.reload(); };
+  $("#logo").addEventListener("click", hardRefresh);
+  $("#logo").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); hardRefresh(); } });
+
+  // 맨 위에서 아래로 당겼다 놓으면 새로고침
+  (() => {
+    const ptr = $("#ptr"), label = $("#ptr-t"), NEED = 70;
+    let startY = null, dist = 0;
+    const editing = (el) => el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+    document.addEventListener("touchstart", (e) => {
+      if (window.scrollY > 0 || e.touches.length !== 1 || editing(e.target)) { startY = null; return; }
+      startY = e.touches[0].clientY; dist = 0;
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => {
+      if (startY === null) return;
+      dist = e.touches[0].clientY - startY;
+      if (dist <= 0 || window.scrollY > 0) { ptr.style.height = "0px"; return; }
+      ptr.classList.add("pulling");
+      ptr.style.height = Math.min(dist * 0.5, 64) + "px";
+      label.textContent = dist >= NEED ? "놓으면 새로고침" : "아래로 당기면 새로고침";
+    }, { passive: true });
+    document.addEventListener("touchend", () => {
+      if (startY === null) return;
+      ptr.classList.remove("pulling");
+      if (dist >= NEED && window.scrollY <= 0) { ptr.style.height = "40px"; hardRefresh(); }
+      else ptr.style.height = "0px";
+      startY = null; dist = 0;
+    });
+  })();
+
   /* ---------- 입력 ---------- */
   $("#search-form").addEventListener("submit", (e) => {
     e.preventDefault();
