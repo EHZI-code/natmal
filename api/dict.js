@@ -33,8 +33,10 @@ export default async function handler(req, res) {
       let code = ""; try { code = String(asArray(JSON.parse(sTxt.replace(/^HTTP \d+ /, "")).channel.item)[0].target_code || ""); } catch (e) {}
       const v1 = code ? await rawText(`${STDICT}/view.do?key=${encodeURIComponent(stKey)}&method=TARGET_CODE&q=${encodeURIComponent(code)}&req_type=json`) : "no code";
       const v2 = code ? await rawText(`${STDICT}/view.do?key=${encodeURIComponent(stKey)}&method=target_code&q=${encodeURIComponent(code)}&req_type=json`) : "no code";
+      const x1 = code ? await rawText(`${STDICT}/view.do?key=${encodeURIComponent(stKey)}&method=TARGET_CODE&q=${encodeURIComponent(code)}&req_type=xml`) : "no code";
+      const x2 = code ? await rawText(`${STDICT}/view.do?key=${encodeURIComponent(stKey)}&method=TARGET_CODE&q=${encodeURIComponent(code)}`) : "no code";
       res.setHeader("Cache-Control", "no-store");
-      return res.status(200).json({ code, search: sTxt.slice(0, 800), viewUpper: v1, viewLower: v2 });
+      return res.status(200).json({ code, entries, search: sTxt.slice(0, 600), viewJson: v1.slice(0, 200), viewXml: x1.slice(0, 1500), viewPlain: x2.slice(0, 600) });
     }
     res.setHeader("Cache-Control", "s-maxage=3600");
     return res.status(200).json({ query: q, source, entries });
@@ -63,7 +65,15 @@ async function fromStdict(q, key) {
       if (d && !g.senses.includes(d)) { g.senses.push(d); g.types.push((sn && sn.type) || ""); }
     }
   }
-  return [...groups.values()].slice(0, MAX_ENTRIES).map(({ it, senses, types }) => {
+  const heads = [...groups.values()].slice(0, MAX_ENTRIES);
+  // 검색 결과에는 표제어마다 첫 뜻만 온다 → 상세 정보(XML)에서 나머지 뜻을 채운다
+  await Promise.all(heads.map(async (g) => {
+    if (!g.it.target_code) return;
+    const more = await stdictDetail(key, g.it.target_code);
+    for (const d of more.senses) if (!g.senses.includes(d)) { g.senses.push(d); g.types.push(""); }
+    if (!g.it.origin && more.origin) g.it.origin = more.origin;
+  }));
+  return heads.map(({ it, senses, types }) => {
     const origin = clean(it.origin || "");
     return withDialect({
       headword: cleanWord(it.word), supNo: Number(it.sup_no) || 0,
@@ -72,6 +82,32 @@ async function fromStdict(q, key) {
       senses: senses.slice(0, 6), types,
     });
   }).filter((e) => e.senses.length);
+}
+
+// 상세 정보는 JSON으로 물으면 빈 답이 와서 XML로 받아 뜻을 꺼낸다
+async function stdictDetail(key, code) {
+  const out = { senses: [], origin: "" };
+  const xml = await stdictDetailXml(key, code);
+  if (!xml) return out;
+  for (const m of xml.matchAll(/<definition>([\s\S]*?)<\/definition>/g)) {
+    const d = clean(m[1].replace(/^<!\[CDATA\[/, "").replace(/\]\]>$/, ""));
+    if (d && !out.senses.includes(d)) out.senses.push(d);
+  }
+  const o = xml.match(/<original_language>([\s\S]*?)<\/original_language>/);
+  if (o) out.origin = clean(o[1].replace(/^<!\[CDATA\[/, "").replace(/\]\]>$/, ""));
+  return out;
+}
+async function stdictDetailXml(key, code) {
+  for (const extra of ["&req_type=xml", ""]) {
+    for (const method of ["TARGET_CODE", "target_code"]) {
+      try {
+        const r = await fetch(`${STDICT}/view.do?key=${encodeURIComponent(key)}&method=${method}&q=${encodeURIComponent(code)}${extra}`);
+        const t = await r.text();
+        if (/<definition>/.test(t)) return t;
+      } catch (e) { /* 다음 방식으로 */ }
+    }
+  }
+  return "";
 }
 
 /* ---------- 우리말샘 ---------- */
