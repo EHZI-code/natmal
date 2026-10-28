@@ -26,6 +26,13 @@ export default async function handler(req, res) {
       entries = await fromOpendict(q, odKey);
       source = entries.length ? "우리말샘" : source;
     }
+    if (req.query && req.query.debug && stKey) {
+      const raw = await getJSON(`${STDICT}/search.do?key=${encodeURIComponent(stKey)}&q=${encodeURIComponent(q)}&req_type=json&num=3&advanced=n&part=word&sort=dict`).catch((e) => String(e));
+      const first = asArray(raw && raw.channel && raw.channel.item)[0];
+      const view = first && first.target_code ? await stdictView(stKey, first.target_code) : null;
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).json({ query: q, entries, rawSearchFirst: first || raw, rawView: view });
+    }
     res.setHeader("Cache-Control", "s-maxage=604800, stale-while-revalidate=86400");
     return res.status(200).json({ query: q, source, entries });
   } catch (e) {
@@ -52,25 +59,35 @@ async function fromStdict(q, key) {
 
   const full = await Promise.all(heads.map(async (it) => {
     let view = null;
-    if (it.target_code) {
-      try {
-        view = await getJSON(`${STDICT}/view.do?key=${encodeURIComponent(key)}&method=target_code&q=${encodeURIComponent(it.target_code)}&req_type=json`);
-      } catch (e) { view = null; }
-    }
+    if (it.target_code) view = await stdictView(key, it.target_code);
     return stdictEntry(it, view);
   }));
   return full.filter((e) => e.senses.length);
 }
 
-function stdictEntry(it, view) {
-  const wi = view && view.channel && view.channel.item && (view.channel.item.word_info || view.channel.item);
+// 상세 정보: 응답의 item이 배열일 수도, 객체일 수도 있다
+async function stdictView(key, code) {
+  for (const method of ["TARGET_CODE", "target_code"]) {
+    try {
+      const v = await getJSON(`${STDICT}/view.do?key=${encodeURIComponent(key)}&method=${method}&q=${encodeURIComponent(code)}&req_type=json`);
+      const item = asArray(v && v.channel && v.channel.item)[0];
+      if (item) return item;
+    } catch (e) { /* 다음 방식으로 */ }
+  }
+  return null;
+}
+
+function stdictEntry(it, item) {
+  const wi = item && (item.word_info || item);
   const word = cleanWord((wi && wi.word) || it.word);
   const supNo = Number(it.sup_no) || 0;
 
   let hanja = "";
-  for (const o of asArray(wi && wi.original_language_info)) {
+  const origins = asArray(wi && wi.original_language_info).concat(asArray(item && item.original_language_info));
+  for (const o of origins) {
     if (/한자/.test(o.language_type || "") || /\p{Script=Han}/u.test(o.original_language || "")) hanja += clean(o.original_language);
   }
+  if (!hanja && wi && typeof wi.original_language === "string" && /\p{Script=Han}/u.test(wi.original_language)) hanja = clean(wi.original_language);
 
   let pos = "";
   const senses = [];
