@@ -51,74 +51,27 @@ async function fromStdict(q, key) {
   const items = asArray(data && data.channel && data.channel.item);
   if (!items.length) return [];
 
-  // 같은 표제어 번호(target_code)끼리 묶는다. 검색 결과에는 뜻이 하나씩만 실려 있어서
-  // 표제어마다 view.do로 전체 뜻·한자를 다시 받는다.
+  // 검색 결과만으로 만든다 (상세 view.do는 JSON으로 빈 답이 온다).
+  // 한자는 origin 칸에 있다. 같은 표제어(target_code)가 뜻마다 여러 줄로 오거나 sense가 배열일 수 있어 모두 모은다.
   const groups = new Map();
   for (const it of items) {
-    const code = String(it.target_code || "");
-    if (!groups.has(code)) groups.set(code, it);
+    const code = String(it.target_code || it.word + "|" + it.sup_no);
+    if (!groups.has(code)) groups.set(code, { it, senses: [], types: [] });
+    const g = groups.get(code);
+    for (const sn of asArray(it.sense)) {
+      const d = clean(sn && sn.definition);
+      if (d && !g.senses.includes(d)) { g.senses.push(d); g.types.push((sn && sn.type) || ""); }
+    }
   }
-  const heads = [...groups.values()].slice(0, MAX_ENTRIES);
-
-  const full = await Promise.all(heads.map(async (it) => {
-    let view = null;
-    if (it.target_code) view = await stdictView(key, it.target_code);
-    return stdictEntry(it, view);
-  }));
-  return full.filter((e) => e.senses.length);
-}
-
-// 상세 정보: 응답의 item이 배열일 수도, 객체일 수도 있다
-async function stdictView(key, code) {
-  for (const method of ["TARGET_CODE", "target_code"]) {
-    try {
-      const v = await getJSON(`${STDICT}/view.do?key=${encodeURIComponent(key)}&method=${method}&q=${encodeURIComponent(code)}&req_type=json`);
-      const item = asArray(v && v.channel && v.channel.item)[0];
-      if (item) return item;
-    } catch (e) { /* 다음 방식으로 */ }
-  }
-  return null;
-}
-
-function stdictEntry(it, item) {
-  const wi = item && (item.word_info || item);
-  const word = cleanWord((wi && wi.word) || it.word);
-  const supNo = Number(it.sup_no) || 0;
-
-  let hanja = "";
-  const origins = asArray(wi && wi.original_language_info).concat(asArray(item && item.original_language_info));
-  for (const o of origins) {
-    if (/한자/.test(o.language_type || "") || /\p{Script=Han}/u.test(o.original_language || "")) hanja += clean(o.original_language);
-  }
-  if (!hanja && wi && typeof wi.original_language === "string" && /\p{Script=Han}/u.test(wi.original_language)) hanja = clean(wi.original_language);
-
-  let pos = "";
-  const senses = [];
-  const types = [];
-  for (const p of asArray(wi && wi.pos_info)) {
-    if (!pos && p.pos && p.pos !== "품사 없음") pos = p.pos;
-    collectSenses(p, senses, types);
-  }
-  if (!senses.length) {
-    for (const s of asArray(it.sense)) if (s.definition) { senses.push(clean(s.definition)); types.push(s.type || ""); }
-  }
-  if (!pos && it.pos && it.pos !== "품사 없음") pos = it.pos;
-
-  return withDialect({ headword: word, supNo, hanja, pos, senses: senses.slice(0, 6), types });
-}
-
-function collectSenses(node, out, types) {
-  if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) { node.forEach((n) => collectSenses(n, out, types)); return; }
-  if (typeof node.definition === "string" && node.definition.trim()) {
-    out.push(clean(node.definition));
-    types.push(node.type || "");
-    return;
-  }
-  for (const k of Object.keys(node)) {
-    const v = node[k];
-    if (v && typeof v === "object") collectSenses(v, out, types);
-  }
+  return [...groups.values()].slice(0, MAX_ENTRIES).map(({ it, senses, types }) => {
+    const origin = clean(it.origin || "");
+    return withDialect({
+      headword: cleanWord(it.word), supNo: Number(it.sup_no) || 0,
+      hanja: /\p{Script=Han}/u.test(origin) ? origin.replace(/[-^]/g, "") : "",
+      pos: it.pos && it.pos !== "품사 없음" ? it.pos : "",
+      senses: senses.slice(0, 6), types,
+    });
+  }).filter((e) => e.senses.length);
 }
 
 /* ---------- 우리말샘 ---------- */
@@ -137,7 +90,7 @@ async function fromOpendict(q, key) {
     }
     let hanja = "";
     for (const s of asArray(it.sense)) {
-      const o = s.origin || s.original_language || "";
+      const o = it.origin || s.origin || s.original_language || "";
       if (/\p{Script=Han}/u.test(o)) { hanja = clean(o); break; }
     }
     if (senses.length) out.push(withDialect({ headword: cleanWord(it.word), supNo: Number(it.sup_no) || 0, hanja, pos, senses: senses.slice(0, 6), types }));
