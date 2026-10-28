@@ -27,13 +27,16 @@ export default async function handler(req, res) {
       source = entries.length ? "우리말샘" : source;
     }
     if (req.query && req.query.debug && stKey) {
-      const raw = await getJSON(`${STDICT}/search.do?key=${encodeURIComponent(stKey)}&q=${encodeURIComponent(q)}&req_type=json&num=3&advanced=n&part=word&sort=dict`).catch((e) => String(e));
-      const first = asArray(raw && raw.channel && raw.channel.item)[0];
-      const view = first && first.target_code ? await stdictView(stKey, first.target_code) : null;
+      // 확인용: 사전이 보낸 글자를 그대로 보여 준다 (키는 들어 있지 않다)
+      const rawText = async (u) => { try { const r = await fetch(u); return `HTTP ${r.status} ` + (await r.text()).slice(0, 2500); } catch (e) { return "fetch error: " + String(e); } };
+      const sTxt = await rawText(`${STDICT}/search.do?key=${encodeURIComponent(stKey)}&q=${encodeURIComponent(q)}&req_type=json&num=10&advanced=n&part=word&sort=dict`);
+      let code = ""; try { code = String(asArray(JSON.parse(sTxt.replace(/^HTTP \d+ /, "")).channel.item)[0].target_code || ""); } catch (e) {}
+      const v1 = code ? await rawText(`${STDICT}/view.do?key=${encodeURIComponent(stKey)}&method=TARGET_CODE&q=${encodeURIComponent(code)}&req_type=json`) : "no code";
+      const v2 = code ? await rawText(`${STDICT}/view.do?key=${encodeURIComponent(stKey)}&method=target_code&q=${encodeURIComponent(code)}&req_type=json`) : "no code";
       res.setHeader("Cache-Control", "no-store");
-      return res.status(200).json({ query: q, entries, rawSearchFirst: first || raw, rawView: view });
+      return res.status(200).json({ code, search: sTxt.slice(0, 800), viewUpper: v1, viewLower: v2 });
     }
-    res.setHeader("Cache-Control", "s-maxage=604800, stale-while-revalidate=86400");
+    res.setHeader("Cache-Control", "s-maxage=3600");
     return res.status(200).json({ query: q, source, entries });
   } catch (e) {
     return res.status(502).json({ error: "upstream", message: String((e && e.message) || e) });
